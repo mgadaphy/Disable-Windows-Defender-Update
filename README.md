@@ -8,7 +8,7 @@
 
 ## Features
 - Disables Windows Defender real-time protection and related features
-- Disables Tamper Protection via the Windows Registry
+- Disables Tamper Protection via the Windows Registry (attempts automatic disable, but manual action may be required)
 - Stops and disables Windows Defender and related services (WinDefend, WdNisSvc, etc.)
 - Stops and disables Windows Update and auxiliary services (wuauserv, UsoSvc, WaaSMedicSvc, BITS, sedsvc, etc.)
 - Disables scheduled tasks that can re-enable updates or Defender
@@ -21,6 +21,17 @@
 - **Security Risk:** Your PC will be vulnerable to malware and security threats.
 - **Persistence:** Major Windows feature updates may re-enable some services. No script can guarantee 100% permanent disablement on Windows 11.
 - **Re-enabling:** You must manually re-enable these services if you want to restore updates or Defender protection.
+- **Tamper Protection:** The script attempts to disable Windows Defender Tamper Protection automatically via the registry. However, on some systems, you may need to manually turn off Tamper Protection in Windows Security settings before running the script for all changes to take effect. If the script reports failure to disable Tamper Protection, please disable it manually and re-run the script.
+
+## Download Instructions
+
+1. Go to the [GitHub repository page](https://github.com/mgadaphy/Disable-Windows-Defender-Update) in your web browser.
+2. Click the green **Code** button and select **Download ZIP**.
+3. Extract the ZIP file to a folder on your computer, such as `C:\Users\YourUsername\Downloads\Disable-Windows-Defender-Update`.
+4. Alternatively, if you have Git installed, you can clone the repository:
+   ```powershell
+   git clone https://github.com/mgadaphy/Disable-Windows-Defender-Update.git
+   ```
 
 ## How to Use
 
@@ -37,7 +48,7 @@
 3. **Navigate to the Script Location**
    - Use `cd` to change to the folder where you saved the script. For example:
      ```powershell
-     cd "C:\Users\YourUsername\Downloads"
+     cd "C:\Users\YourUsername\Downloads\Disable-Windows-Defender-Update"
      ```
 
 4. **Run the Script**
@@ -54,13 +65,6 @@
 
 ## How to Re-enable Windows Defender and Windows Update
 To restore Windows Defender and Windows Update, you will need to manually re-enable the services, scheduled tasks, and undo the registry and firewall changes. This process is not automated by this script. Consider searching for a dedicated re-enablement script or manually reversing the changes.
-
-## SEO Keywords
-- Disable Windows Defender Windows 11
-- Turn off Windows Update Windows 11
-- PowerShell script disable Defender
-- Stop automatic updates Windows 11
-- Permanently disable Windows Defender and Update
 
 ---
 
