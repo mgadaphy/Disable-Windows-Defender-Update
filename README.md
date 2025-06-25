@@ -21,7 +21,37 @@
 - **Security Risk:** Your PC will be vulnerable to malware and security threats.
 - **Persistence:** Major Windows feature updates may re-enable some services. No script can guarantee 100% permanent disablement on Windows 11.
 - **Re-enabling:** You must manually re-enable these services if you want to restore updates or Defender protection.
-- **Tamper Protection:** The script attempts to disable Windows Defender Tamper Protection automatically via the registry. However, on some systems, you may need to manually turn off Tamper Protection in Windows Security settings before running the script for all changes to take effect. If the script reports failure to disable Tamper Protection, please disable it manually and re-run the script.
+- **Real-Time Protection:** The script checks if Windows Defender Real-Time Protection is ON or OFF at the start and will inform you. If it is already OFF, you can proceed to fully disable Defender. If it is ON, the script will attempt to turn it off using both standard and forceful methods (registry, WMI, and service changes). If you want to keep Real-Time Protection ON, do not proceed. If you want to re-enable it, use the re-enable script.
+- **Tamper Protection:** The script checks if Windows Defender Tamper Protection is enabled and will warn you at the start if it is. You should manually turn off Tamper Protection in Windows Security settings before running the script for best results. If the script reports failure to disable Tamper Protection or other Defender features, disable Tamper Protection manually and re-run the script.
+
+## Troubleshooting
+
+### Real-Time Protection Status
+At the start, the script checks if Windows Defender Real-Time Protection is ON or OFF. If it is already OFF, you can proceed to fully disable Defender. If it is ON, the script will attempt to turn it off. If you want to keep Real-Time Protection ON, do not proceed. If you want to re-enable it, use the re-enable script.
+
+### Tamper Protection or Defender Features Not Disabled
+If you see warnings or errors about failing to disable Tamper Protection or Defender features, it is likely because Tamper Protection is enabled, a third-party antivirus is installed, or the OS is blocking changes. To resolve:
+- Open **Windows Security > Virus & threat protection > Manage settings > Tamper Protection** and turn it **Off**.
+- Reboot your computer and run the script again as Administrator.
+
+### Hosts File Write Errors
+If you see errors about the script not being able to write to the hosts file, it may be locked by another process or protected by the OS. To block Windows Update servers manually:
+1. Open Notepad as Administrator.
+2. Open `C:\Windows\System32\drivers\etc\hosts`.
+3. Add the following lines (one per update server):
+   ```
+   127.0.0.1    windowsupdate.microsoft.com
+   127.0.0.1    update.microsoft.com
+   127.0.0.1    download.windowsupdate.com
+   127.0.0.1    wustat.windows.com
+   ```
+4. Save the file and close Notepad.
+
+### Other Errors
+Some services or scheduled tasks may fail to disable due to OS protection or because they do not exist on your system. This is normal and expected on some Windows 11 builds. For best results, always run the script as Administrator and reboot after running.
+
+### Forceful Disable and Re-enable Attempts
+The script now includes a forceful attempt to disable Real-Time Protection and related Defender features using registry edits, WMI, and service changes. The re-enable script will attempt to fully restore these settings, including removing registry keys and restoring WMI/Defender preferences. If you encounter issues, reboot and run the re-enable script as Administrator.
 
 ## Download Instructions
 
@@ -64,7 +94,13 @@
    - For all changes to take effect, manually reboot your computer after running the script.
 
 ## How to Re-enable Windows Defender and Windows Update
-To restore Windows Defender and Windows Update, you will need to manually re-enable the services, scheduled tasks, and undo the registry and firewall changes. This process is not automated by this script. Consider searching for a dedicated re-enablement script or manually reversing the changes.
+To restore Windows Defender and Windows Update, use the provided `Reenable_Defender_WindowsUpdate.ps1` script. This script will attempt to:
+- Remove all registry and Group Policy blocks for Defender and Windows Update
+- Remove forceful disable keys for Real-Time Protection and AntiSpyware
+- Restore Defender settings via WMI
+- Re-enable all relevant services and scheduled tasks
+- Remove hosts file and firewall blocks
+Run the script as Administrator, then reboot your computer. If you still encounter issues, check the Troubleshooting section or manually review the registry and service settings.
 
 ---
 
