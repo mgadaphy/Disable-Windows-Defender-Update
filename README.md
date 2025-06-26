@@ -53,6 +53,9 @@ Some services or scheduled tasks may fail to disable due to OS protection or bec
 ### Forceful Disable and Re-enable Attempts
 The script now includes a forceful attempt to disable Real-Time Protection and related Defender features using registry edits, WMI, and service changes. The re-enable script will attempt to fully restore these settings, including removing registry keys and restoring WMI/Defender preferences. If you encounter issues, reboot and run the re-enable script as Administrator.
 
+### Script Robustness and Timeouts
+Both the disable and re-enable scripts now use timeouts and background jobs for all potentially slow or hanging operations (such as WMI, service changes, and scheduled tasks). This ensures the scripts never hang indefinitely and always provide clear output about what is happening. If a step times out, the script will report it and continue.
+
 ## Download Instructions
 
 1. Go to the [GitHub repository page](https://github.com/mgadaphy/Disable-Windows-Defender-Update) in your web browser.
@@ -100,7 +103,7 @@ To restore Windows Defender and Windows Update, use the provided `Reenable_Defen
 - Restore Defender settings via WMI
 - Re-enable all relevant services and scheduled tasks
 - Remove hosts file and firewall blocks
-Run the script as Administrator, then reboot your computer. If you still encounter issues, check the Troubleshooting section or manually review the registry and service settings.
+Run the script as Administrator, then reboot your computer. If you still encounter issues, check the Troubleshooting section or manually review the registry and service settings. The script will never hang indefinitely and will always report if a step times out or fails.
 
 ---
 

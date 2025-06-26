@@ -93,6 +93,7 @@ Try {
 Write-Output "[FORCEFUL ATTEMPT] Trying to disable Real-Time Protection and related Defender features via registry and Group Policy..."
 
 # Registry: Disable AntiSpyware
+Write-Output "Setting DisableAntiSpyware registry key..."
 Try {
     New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 1 -PropertyType DWORD -Force -ErrorAction Stop
     Write-Output "Registry: DisableAntiSpyware set to 1."
@@ -101,6 +102,7 @@ Try {
 }
 
 # Registry: Disable Real-Time Protection
+Write-Output "Setting Real-Time Protection registry keys..."
 Try {
     New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Force | Out-Null
     New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -PropertyType DWORD -Force -ErrorAction Stop
@@ -112,25 +114,47 @@ Try {
     Write-Output "Failed to set Real-Time Protection registry keys."
 }
 
-# Group Policy: Disable Defender via WMI (if available)
+# Group Policy: Disable Defender via WMI (if available) with timeout
+Write-Output "Attempting to set DisableRealtimeMonitoring via WMI (10s timeout)..."
 Try {
-    $namespace = "root\Microsoft\Windows\Defender"
-    $class = Get-WmiObject -Namespace $namespace -List | Where-Object { $_.Name -eq "MSFT_MpPreference" }
-    if ($class) {
-        $mp = Get-WmiObject -Namespace $namespace -Class MSFT_MpPreference
-        $mp.DisableRealtimeMonitoring = $true
-        $mp.Put() | Out-Null
-        Write-Output "WMI: DisableRealtimeMonitoring set to true."
+    $job = Start-Job {
+        $namespace = "root\Microsoft\Windows\Defender"
+        $class = Get-WmiObject -Namespace $namespace -List | Where-Object { $_.Name -eq "MSFT_MpPreference" }
+        if ($class) {
+            $mp = Get-WmiObject -Namespace $namespace -Class MSFT_MpPreference
+            $mp.DisableRealtimeMonitoring = $true
+            $mp.Put() | Out-Null
+            "WMI: DisableRealtimeMonitoring set to true."
+        } else {
+            "WMI class not found. Skipping WMI step."
+        }
     }
+    $completed = Wait-Job $job -Timeout 10
+    if ($completed) {
+        Receive-Job $job | Write-Output
+    } else {
+        Stop-Job $job | Out-Null
+        Write-Output "WMI step timed out. Skipping."
+    }
+    Remove-Job $job | Out-Null
 } Catch {
     Write-Output "Failed to set DisableRealtimeMonitoring via WMI."
 }
 
-# Attempt to stop Defender service again
+# Attempt to stop Defender service again with timeout
+Write-Output "Attempting to force stop and disable WinDefend service (10s timeout)..."
 Try {
-    Stop-Service -Name WinDefend -Force -ErrorAction Stop
-    Set-Service -Name WinDefend -StartupType Disabled -ErrorAction Stop
-    Write-Output "Forcefully stopped and disabled WinDefend service."
+    $job = Start-Job { Stop-Service -Name WinDefend -Force -ErrorAction Stop }
+    $completed = Wait-Job $job -Timeout 10
+    if ($completed) {
+        Receive-Job $job | Out-Null
+        Set-Service -Name WinDefend -StartupType Disabled -ErrorAction Stop
+        Write-Output "Forcefully stopped and disabled WinDefend service."
+    } else {
+        Stop-Job $job | Out-Null
+        Write-Output "Stopping WinDefend service timed out. Skipping."
+    }
+    Remove-Job $job | Out-Null
 } Catch {
     Write-Output "Failed to force stop/disable WinDefend service. This is expected if Tamper Protection is enabled."
 }
@@ -148,11 +172,25 @@ $services = @(
     "WdNisSvc",    # Defender Antivirus Network Inspection Service
     "sedsvc"       # Windows Remediation Service
 )
+
+# Attempt to stop and disable additional services with timeout
 foreach ($svc in $services) {
+    Write-Output "Attempting to stop and disable $svc (10s timeout)..."
     Try {
-        Stop-Service -Name $svc -Force -ErrorAction Stop
-        Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
-        Write-Output "$svc service stopped and disabled."
+        $job = Start-Job {
+            param($svcName)
+            Stop-Service -Name $svcName -Force -ErrorAction Stop
+            Set-Service -Name $svcName -StartupType Disabled -ErrorAction Stop
+        } -ArgumentList $svc
+        $completed = Wait-Job $job -Timeout 10
+        if ($completed) {
+            Receive-Job $job | Out-Null
+            Write-Output "$svc service stopped and disabled."
+        } else {
+            Stop-Job $job | Out-Null
+            Write-Output "Stopping/disabling $svc timed out. Skipping."
+        }
+        Remove-Job $job | Out-Null
     } Catch {
         Write-Output "Failed to stop/disable $svc. This may be due to OS protection or the service not existing."
     }
@@ -169,10 +207,24 @@ $tasks = @(
     "\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker_Display",
     "\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker_ReadyToReboot"
 )
+
+# Disable scheduled tasks with timeout
 foreach ($task in $tasks) {
+    Write-Output "Attempting to disable scheduled task: $task (10s timeout)..."
     Try {
-        Disable-ScheduledTask -TaskPath ([System.IO.Path]::GetDirectoryName($task)) -TaskName ([System.IO.Path]::GetFileName($task)) -ErrorAction Stop
-        Write-Output "Disabled scheduled task: $task"
+        $job = Start-Job {
+            param($taskPath)
+            Disable-ScheduledTask -TaskPath ([System.IO.Path]::GetDirectoryName($taskPath)) -TaskName ([System.IO.Path]::GetFileName($taskPath)) -ErrorAction Stop
+        } -ArgumentList $task
+        $completed = Wait-Job $job -Timeout 10
+        if ($completed) {
+            Receive-Job $job | Out-Null
+            Write-Output "Disabled scheduled task: $task"
+        } else {
+            Stop-Job $job | Out-Null
+            Write-Output "Disabling scheduled task $task timed out. Skipping."
+        }
+        Remove-Job $job | Out-Null
     } Catch {
         Write-Output "Failed to disable scheduled task: $task. It may not exist or may be protected by the OS."
     }

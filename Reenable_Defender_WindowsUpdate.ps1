@@ -26,16 +26,29 @@ Try {
     Write-Output "Restored Tamper Protection registry value."
 } Catch {}
 
-# Restore Defender settings via WMI (if available)
+# Restore Defender settings via WMI (if available) with timeout
+Write-Output "Attempting to restore DisableRealtimeMonitoring via WMI (10s timeout)..."
 Try {
-    $namespace = "root\Microsoft\Windows\Defender"
-    $class = Get-WmiObject -Namespace $namespace -List | Where-Object { $_.Name -eq "MSFT_MpPreference" }
-    if ($class) {
-        $mp = Get-WmiObject -Namespace $namespace -Class MSFT_MpPreference
-        $mp.DisableRealtimeMonitoring = $false
-        $mp.Put() | Out-Null
-        Write-Output "WMI: DisableRealtimeMonitoring set to false."
+    $job = Start-Job {
+        $namespace = "root\Microsoft\Windows\Defender"
+        $class = Get-WmiObject -Namespace $namespace -List | Where-Object { $_.Name -eq "MSFT_MpPreference" }
+        if ($class) {
+            $mp = Get-WmiObject -Namespace $namespace -Class MSFT_MpPreference
+            $mp.DisableRealtimeMonitoring = $false
+            $mp.Put() | Out-Null
+            "WMI: DisableRealtimeMonitoring set to false."
+        } else {
+            "WMI class not found. Skipping WMI step."
+        }
     }
+    $completed = Wait-Job $job -Timeout 10
+    if ($completed) {
+        Receive-Job $job | Write-Output
+    } else {
+        Stop-Job $job | Out-Null
+        Write-Output "WMI step timed out. Skipping."
+    }
+    Remove-Job $job | Out-Null
 } Catch {
     Write-Output "Failed to restore DisableRealtimeMonitoring via WMI."
 }
@@ -50,11 +63,25 @@ $services = @(
     "WdNisSvc",
     "sedsvc"
 )
+
+# Re-enable Defender and Update services with timeout
 foreach ($svc in $services) {
+    Write-Output "Attempting to set $svc to Automatic and start (10s timeout)..."
     Try {
-        Set-Service -Name $svc -StartupType Automatic -ErrorAction SilentlyContinue
-        Start-Service -Name $svc -ErrorAction SilentlyContinue
-        Write-Output "$svc service set to Automatic and started."
+        $job = Start-Job {
+            param($svcName)
+            Set-Service -Name $svcName -StartupType Automatic -ErrorAction Stop
+            Start-Service -Name $svcName -ErrorAction Stop
+        } -ArgumentList $svc
+        $completed = Wait-Job $job -Timeout 10
+        if ($completed) {
+            Receive-Job $job | Out-Null
+            Write-Output "$svc service set to Automatic and started."
+        } else {
+            Stop-Job $job | Out-Null
+            Write-Output "Setting/starting $svc timed out. Skipping."
+        }
+        Remove-Job $job | Out-Null
     } Catch {
         Write-Output "Failed to re-enable $svc."
     }
@@ -71,10 +98,24 @@ $tasks = @(
     "\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker_Display",
     "\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker_ReadyToReboot"
 )
+
+# Re-enable scheduled tasks with timeout
 foreach ($task in $tasks) {
+    Write-Output "Attempting to enable scheduled task: $task (10s timeout)..."
     Try {
-        Enable-ScheduledTask -TaskPath ([System.IO.Path]::GetDirectoryName($task)) -TaskName ([System.IO.Path]::GetFileName($task)) -ErrorAction SilentlyContinue
-        Write-Output "Enabled scheduled task: $task"
+        $job = Start-Job {
+            param($taskPath)
+            Enable-ScheduledTask -TaskPath ([System.IO.Path]::GetDirectoryName($taskPath)) -TaskName ([System.IO.Path]::GetFileName($taskPath)) -ErrorAction Stop
+        } -ArgumentList $task
+        $completed = Wait-Job $job -Timeout 10
+        if ($completed) {
+            Receive-Job $job | Out-Null
+            Write-Output "Enabled scheduled task: $task"
+        } else {
+            Stop-Job $job | Out-Null
+            Write-Output "Enabling scheduled task $task timed out. Skipping."
+        }
+        Remove-Job $job | Out-Null
     } Catch {
         Write-Output "Failed to enable scheduled task: $task"
     }
